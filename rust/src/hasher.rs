@@ -1,7 +1,7 @@
 pub struct Hasher {
 }
 
-// Tables for function F
+// Tables for function f
 const T : [[u64; 256]; 8] = [
 [
 0xE6F87E5C5B711FD0u64,0x258377800924FA16u64,0xC849E07E852EA4A8u64,0x5B4686A18F06C16Au64,
@@ -607,34 +607,26 @@ const C: [[u8; 64]; 12] = [
 0xFA,0xF4,0x17,0xD5,0xD9,0xB2,0x1B,0x99,0x48,0xBC,0x92,0x4A,0xF1,0x1B,0xD7,0x20
 ] ];
 
-fn AddModulo512(const void* a, const void* b, void* c)
+fn add_modulo512(a: &[u8; 64], b: &[u8; 64], c: &mut [u8; 64])
 {
-    const u8* A = (u8*)a, * B = (u8*)b;
-    u8* C = (u8*)c;
-    
-    int t = 0;
-    for (int i = 63; i >= 0; --i)
-    {
-        t = A[i] + B[i] + (t >> 8);
-        C[i] = t & 0xFF;
+    t = 0usize;
+    for i in (0..64).rev() {
+        t = a[i] + b[i] + (t >> 8);
+        c[i] = t & 0xFF;
     }
 }
 
-fn AddXor512(const void* a, const void* b, void* c)
+fn add_xor512(a: &[u8; 64], b: &[u8; 64], c: &mut [u8; 64])
 {
-    const u64* A = (u64*)a, * B = (u64*)b;
-    u64* C = (u64*)c;
-    
-    for (uint i = 0; i < 8; ++i)
-    {
-        C[i] = A[i] ^ B[i];
+    for i in 0..64 {
+        c[i] = a[i] ^ b[i];
     }
 }
 
-fn F(u8* state)
+fn f(state: &mut[u8; 64])
 {
-    u64 return_state[8];
-    u64 r = 0;
+    let mut return_state: [u64; 8] = [0u64; 8];
+    let mut r = 0u64;
     
     r ^= T[0][state[56]];
     r ^= T[1][state[48]];
@@ -726,29 +718,29 @@ fn F(u8* state)
     memcpy(state, (u8*)return_state, 64);
 }
 
-#define KeySchedule(K, i) AddXor512(K, C[i], K); F(K);
+#define KeySchedule(K, i) add_xor512(K, C[i], K); f(K);
 
-fn E(u8* K, const u8* m, u8* state)
+fn e(u8* K, const u8* m, u8* state)
 {
-    AddXor512(m, K, state);
+    add_xor512(m, K, state);
     
     for (uint i = 0; i < 12; ++i)
     {
-        F(state);
+        f(state);
         KeySchedule(K, i);
-        AddXor512(state, K, state);
+        add_xor512(state, K, state);
     }
 }
 
-fn g_N(const u8* N, u8* h, const u8* m)
+fn g_n(const u8* N, u8* h, const u8* m)
 {
     u8 t[64], K[64];
     
-    AddXor512(N, h, K);
-    F(K);
-    E(K, m, t);
-    AddXor512(t, h, t);
-    AddXor512(t, m, h);
+    add_xor512(N, h, K);
+    f(K);
+    e(K, m, t);
+    add_xor512(t, h, t);
+    add_xor512(t, m, h);
 }
 
 impl Hasher {
@@ -768,9 +760,9 @@ impl Hasher {
         {
             memcpy(m, src + len / 8 - 63 - ((len & 0x7) == 0), 64);
 
-            g_N(N, hash, m);
-            AddModulo512(N, v512, N);
-            AddModulo512(Sigma, m, Sigma);
+            g_n(N, hash, m);
+            add_modulo512(N, v512, N);
+            add_modulo512(Sigma, m, Sigma);
             len -= 512;
         }
 
@@ -780,14 +772,14 @@ impl Hasher {
         // Stage 3
         m[63 - len / 8] |= (1 << (len & 0x7));
 
-        g_N(N, hash, m);
+        g_n(N, hash, m);
         v512[63] = len & 0xFF;
         v512[62] = (u8)(len >> 8);
-        AddModulo512(N, v512, N);
+        add_modulo512(N, v512, N);
 
-        AddModulo512(Sigma, m, Sigma);
+        add_modulo512(Sigma, m, Sigma);
 
-        g_N(v0, hash, N);
-        g_N(v0, hash, Sigma);
+        g_n(v0, hash, N);
+        g_n(v0, hash, Sigma);
     }
 }
