@@ -78,10 +78,10 @@ static bool runCryptTests()
 
 static bool runHashTest(const hash::TestCase &test)
 {
-	Hasher h;
-
 	byte *hashed = new byte[64];
 	Hasher::hash(test.input, hashed, test.input_size);
+
+	//printBytes(hashed, 64);
 
 	const auto res = memcmp(hashed, test.hash, 64) == 0;
 	delete[] hashed;
