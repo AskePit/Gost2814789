@@ -2156,14 +2156,6 @@ const C: [[u8; 64]; 12] = [
     ],
 ];
 
-fn add_modulo512(a: &[u8; 64], b: &[u8; 64], c: &mut [u8; 64]) {
-    let mut t = 0usize;
-    for i in (0..64).rev() {
-        t = a[i] as usize + b[i] as usize + (t >> 8);
-        c[i] = (t & 0xFF) as u8;
-    }
-}
-
 fn add_assign_modulo512(a: &mut [u8; 64], b: &[u8; 64]) {
     let mut t = 0usize;
     for i in (0..64).rev() {
@@ -2180,7 +2172,7 @@ fn add_xor512(a: &[u8; 64], b: &[u8; 64], c: &mut [u8; 64]) {
 
 fn add_assign_xor512(a: &mut [u8; 64], b: &[u8; 64]) {
     for i in 0..64 {
-        a[i] = a[i] ^ b[i];
+        a[i] ^= b[i];
     }
 }
 
@@ -2197,92 +2189,18 @@ fn f(state: &mut [u8; 64]) {
     let mut return_state: [u64; 8] = [0u64; 8];
     let mut r = 0u64;
 
-    r ^= T[0][state[56] as usize];
-    r ^= T[1][state[48] as usize];
-    r ^= T[2][state[40] as usize];
-    r ^= T[3][state[32] as usize];
-    r ^= T[4][state[24] as usize];
-    r ^= T[5][state[16] as usize];
-    r ^= T[6][state[8] as usize];
-    r ^= T[7][state[0] as usize];
-    return_state[0] = r;
-    r = 0;
-
-    r ^= T[0][state[57] as usize];
-    r ^= T[1][state[49] as usize];
-    r ^= T[2][state[41] as usize];
-    r ^= T[3][state[33] as usize];
-    r ^= T[4][state[25] as usize];
-    r ^= T[5][state[17] as usize];
-    r ^= T[6][state[9] as usize];
-    r ^= T[7][state[1] as usize];
-    return_state[1] = r;
-    r = 0;
-
-    r ^= T[0][state[58] as usize];
-    r ^= T[1][state[50] as usize];
-    r ^= T[2][state[42] as usize];
-    r ^= T[3][state[34] as usize];
-    r ^= T[4][state[26] as usize];
-    r ^= T[5][state[18] as usize];
-    r ^= T[6][state[10] as usize];
-    r ^= T[7][state[2] as usize];
-    return_state[2] = r;
-    r = 0;
-
-    r ^= T[0][state[59] as usize];
-    r ^= T[1][state[51] as usize];
-    r ^= T[2][state[43] as usize];
-    r ^= T[3][state[35] as usize];
-    r ^= T[4][state[27] as usize];
-    r ^= T[5][state[19] as usize];
-    r ^= T[6][state[11] as usize];
-    r ^= T[7][state[3] as usize];
-    return_state[3] = r;
-    r = 0;
-
-    r ^= T[0][state[60] as usize];
-    r ^= T[1][state[52] as usize];
-    r ^= T[2][state[44] as usize];
-    r ^= T[3][state[36] as usize];
-    r ^= T[4][state[28] as usize];
-    r ^= T[5][state[20] as usize];
-    r ^= T[6][state[12] as usize];
-    r ^= T[7][state[4] as usize];
-    return_state[4] = r;
-    r = 0;
-
-    r ^= T[0][state[61] as usize];
-    r ^= T[1][state[53] as usize];
-    r ^= T[2][state[45] as usize];
-    r ^= T[3][state[37] as usize];
-    r ^= T[4][state[29] as usize];
-    r ^= T[5][state[21] as usize];
-    r ^= T[6][state[13] as usize];
-    r ^= T[7][state[5] as usize];
-    return_state[5] = r;
-    r = 0;
-
-    r ^= T[0][state[62] as usize];
-    r ^= T[1][state[54] as usize];
-    r ^= T[2][state[46] as usize];
-    r ^= T[3][state[38] as usize];
-    r ^= T[4][state[30] as usize];
-    r ^= T[5][state[22] as usize];
-    r ^= T[6][state[14] as usize];
-    r ^= T[7][state[6] as usize];
-    return_state[6] = r;
-    r = 0;
-
-    r ^= T[0][state[63] as usize];
-    r ^= T[1][state[55] as usize];
-    r ^= T[2][state[47] as usize];
-    r ^= T[3][state[39] as usize];
-    r ^= T[4][state[31] as usize];
-    r ^= T[5][state[23] as usize];
-    r ^= T[6][state[15] as usize];
-    r ^= T[7][state[7] as usize];
-    return_state[7] = r;
+    for state_i in 0..8 {
+        r ^= T[0][state[56 + state_i] as usize];
+        r ^= T[1][state[48 + state_i] as usize];
+        r ^= T[2][state[40 + state_i] as usize];
+        r ^= T[3][state[32 + state_i] as usize];
+        r ^= T[4][state[24 + state_i] as usize];
+        r ^= T[5][state[16 + state_i] as usize];
+        r ^= T[6][state[8 + state_i] as usize];
+        r ^= T[7][state[0 + state_i] as usize];
+        return_state[state_i] = r;
+        r = 0;
+    }
 
     copy_u64_to_u8(&return_state, state);
 }
@@ -2314,41 +2232,42 @@ fn g_n(n: &[u8; 64], h: &mut [u8; 64], m: &[u8; 64]) {
 }
 
 impl Hasher {
-    pub fn hash(&mut self, src: &[u8], dst: &mut [u8; 64]) {
+    pub fn hash(src: &[u8], dst: &mut [u8; 64]) {
         let mut v512: [u8; 64] = [0; 64];
         let v0: [u8; 64] = [0; 64];
         let mut sigma: [u8; 64] = [0; 64];
         let mut n: [u8; 64] = [0; 64];
         let mut m: [u8; 64] = [0; 64];
 
-        let mut len = src.len() * 8;
+        let mut len_bytes = src.len();
 
         dst.fill(0);
         v512[62] = 0x02;
 
         // Stage 2
-        while len >= 512 {
-            let i = len / 8 - 63 - (((len & 0x7) == 0) as usize);
+        while len_bytes >= 64 {
+            let i = len_bytes - 64;
             m.copy_from_slice(&src[i..i + 64]);
 
             g_n(&n, dst, &m);
             add_assign_modulo512(&mut n, &v512);
             add_assign_modulo512(&mut sigma, &m);
-            len -= 512;
+
+            len_bytes -= 64;
         }
 
         m.fill(0);
-        let i = 63 - len / 8 + (((len & 0x7) == 0) as usize);
-        let count = len / 8 + 1 - (((len & 0x7) == 0) as usize);
+        let i = 64 - len_bytes;
+        let count = len_bytes;
 
         m[i..i + count].copy_from_slice(&src[0..count]);
 
         // Stage 3
-        m[63 - len / 8] |= 1 << (len & 0x7);
+        m[63 - len_bytes] |= 1;
 
         g_n(&n, dst, &m);
-        v512[63] = (len & 0xFF) as u8;
-        v512[62] = (len >> 8) as u8;
+        v512[63] = ((len_bytes << 3) & 0xFF) as u8;
+        v512[62] = (len_bytes >> 5) as u8;
         add_assign_modulo512(&mut n, &v512);
 
         add_assign_modulo512(&mut sigma, &m);
