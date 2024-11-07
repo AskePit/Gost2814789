@@ -1,5 +1,6 @@
 #include "crypt.h"
 #include "cryptTests.h"
+#include "hashTests.h"
 
 #include <iostream>
 #include <iomanip>
@@ -72,7 +73,32 @@ static bool runCryptTests()
 
 	std::cout << PAD << ms << " ms" << std::endl;
 	std::cout << PAD << speed << " Mb/s" << std::endl;
-	return true;
+	return pass;
+}
+
+static bool runHashTest(const hash::TestCase &test)
+{
+	Hasher h;
+
+	byte *hashed = new byte[64];
+	Hasher::hash(test.input, hashed, test.input_size);
+
+	const auto res = memcmp(hashed, test.hash, 64) == 0;
+	delete[] hashed;
+
+	return res;
+}
+
+static bool runHashTests()
+{
+	const clock_t begin_time = clock();
+
+	bool pass = true;
+	for (const auto& test : hash::getTests()) {
+		pass &= runHashTest(test);
+	}
+
+	return pass;
 }
 
 static bool runSecureTypesTests()
@@ -170,6 +196,7 @@ int main()
 	for (auto&& [test, name] : {
 
 		TestPair{runCryptTests, "CRYPT"},
+		TestPair{runHashTests, "HASH"},
 		TestPair{runSecureTypesTests, "SECURE TYPES"}
 
 	}) {
