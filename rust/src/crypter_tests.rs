@@ -1478,22 +1478,15 @@ fn crypt_tests() {
             c.set_sync(u64::from_ne_bytes(test.iv));
             c.set_table_from_bytes(test.table);
 
-            let mut crypted = vec![];
-            let mut decrypted = vec![];
-            crypted.resize(test_size, 0);
-            decrypted.resize(test_size, 0);
-
-            // crypt
             let timer_start = SystemTime::now();
-            c.crypt_data(test.input, crypted.as_mut_slice(), test.key);
+            let crypted = c.crypt_data(test.input, test.key);
             total_time += SystemTime::now().duration_since(timer_start).unwrap();
-            assert_eq!(crypted.as_slice(), test.output);
+            assert_eq!(crypted.as_ref(), test.output);
 
-            // decrypt
             let timer_start = SystemTime::now();
-            c.crypt_data(crypted.as_slice(), decrypted.as_mut_slice(), test.key);
+            let decrypted = c.crypt_data(crypted.as_ref(), test.key);
             total_time += SystemTime::now().duration_since(timer_start).unwrap();
-            assert_eq!(decrypted.as_slice(), test.input);
+            assert_eq!(decrypted.as_ref(), test.input);
 
             size += test_size * 2; // crypt and decrypt, so x2
         }
