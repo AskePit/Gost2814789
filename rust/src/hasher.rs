@@ -2156,7 +2156,10 @@ const C: [[u8; 64]; 12] = [
     ],
 ];
 
-fn add_assign_modulo512(a: &mut [u8; 64], b: &[u8; 64]) {
+type HashWord = [u8; 64];
+const ZERO_HASH_WORD: HashWord = [0u8; 64];
+
+fn add_assign_modulo512(a: &mut HashWord, b: &HashWord) {
     let mut t = 0usize;
     for i in (0..64).rev() {
         t = a[i] as usize + b[i] as usize + (t >> 8);
@@ -2164,19 +2167,21 @@ fn add_assign_modulo512(a: &mut [u8; 64], b: &[u8; 64]) {
     }
 }
 
-fn add_xor512(a: &[u8; 64], b: &[u8; 64], c: &mut [u8; 64]) {
+fn add_xor512(a: &HashWord, b: &HashWord) -> HashWord {
+    let mut res = ZERO_HASH_WORD;
     for i in 0..64 {
-        c[i] = a[i] ^ b[i];
+        res[i] = a[i] ^ b[i];
     }
+    res
 }
 
-fn add_assign_xor512(a: &mut [u8; 64], b: &[u8; 64]) {
+fn add_assign_xor512(a: &mut HashWord, b: &HashWord) {
     for i in 0..64 {
         a[i] ^= b[i];
     }
 }
 
-fn copy_u64_to_u8(source: &[u64; 8], dest: &mut [u8; 64]) {
+fn copy_u64_to_u8(source: &[u64; 8], dest: &mut HashWord) {
     for (i, &num) in source.iter().enumerate() {
         let bytes = num.to_le_bytes(); // Convert each u64 to 8 bytes (little-endian)
         let start = i * 8;
@@ -2185,7 +2190,7 @@ fn copy_u64_to_u8(source: &[u64; 8], dest: &mut [u8; 64]) {
     }
 }
 
-fn f(state: &mut [u8; 64]) {
+fn f(state: &mut HashWord) {
     let mut return_state: [u64; 8] = [0u64; 8];
     let mut r = 0u64;
 
@@ -2197,7 +2202,7 @@ fn f(state: &mut [u8; 64]) {
         r ^= T[4][state[24 + state_i] as usize];
         r ^= T[5][state[16 + state_i] as usize];
         r ^= T[6][state[8 + state_i] as usize];
-        r ^= T[7][state[0 + state_i] as usize];
+        r ^= T[7][state[state_i] as usize];
         return_state[state_i] = r;
         r = 0;
     }
@@ -2205,74 +2210,82 @@ fn f(state: &mut [u8; 64]) {
     copy_u64_to_u8(&return_state, state);
 }
 
-fn key_schedule(k: &mut [u8; 64], i: usize) {
+#[inline]
+fn key_schedule(k: &mut HashWord, i: usize) {
     add_assign_xor512(k, &C[i]);
     f(k);
 }
 
-fn e(k: &mut [u8; 64], m: &[u8; 64], state: &mut [u8; 64]) {
-    add_xor512(m, k, state);
+fn e(k: &mut HashWord, m: &HashWord) -> HashWord {
+    let mut state = add_xor512(m, k);
 
     for i in 0..12 {
-        f(state);
+        f(&mut state);
         key_schedule(k, i);
-        add_assign_xor512(state, k);
+        add_assign_xor512(&mut state, k);
     }
+
+    state
 }
 
-fn g_n(n: &[u8; 64], h: &mut [u8; 64], m: &[u8; 64]) {
-    let mut t: [u8; 64] = [0; 64];
-    let mut k: [u8; 64] = [0; 64];
-
-    add_xor512(n, h, &mut k);
+fn g_n0(m: &HashWord, h: &mut HashWord) {
+    let mut k = *h;
     f(&mut k);
-    e(&mut k, m, &mut t);
+    let mut t = e(&mut k, m);
     add_assign_xor512(&mut t, h);
-    add_xor512(&t, m, h);
+    *h = add_xor512(&t, m);
+}
+
+fn g_n(n: &HashWord, m: &HashWord, h: &mut HashWord) {
+    let mut k = add_xor512(n, h);
+    f(&mut k);
+    let mut t = e(&mut k, m);
+    add_assign_xor512(&mut t, h);
+    *h = add_xor512(&t, m);
 }
 
 impl Hasher {
-    pub fn hash(src: &[u8], dst: &mut [u8; 64]) {
-        let mut v512: [u8; 64] = [0; 64];
-        let v0: [u8; 64] = [0; 64];
-        let mut sigma: [u8; 64] = [0; 64];
-        let mut n: [u8; 64] = [0; 64];
-        let mut m: [u8; 64] = [0; 64];
+    pub fn hash(src: &[u8]) -> HashWord {
+        let mut v512 = ZERO_HASH_WORD;
+        let mut sigma = ZERO_HASH_WORD;
+        let mut n = ZERO_HASH_WORD;
 
-        let mut len_bytes = src.len();
+        let mut len = src.len();
+        let mut dst = ZERO_HASH_WORD;
 
-        dst.fill(0);
         v512[62] = 0x02;
 
         // Stage 2
-        while len_bytes >= 64 {
-            let i = len_bytes - 64;
-            m.copy_from_slice(&src[i..i + 64]);
+        while len >= 64 {
+            let i = len - 64;
+            let s = &src[i..len];
+            let s: &HashWord = unsafe { &*(s.as_ptr() as *const HashWord) };
 
-            g_n(&n, dst, &m);
+            g_n(&n, s, &mut dst);
             add_assign_modulo512(&mut n, &v512);
-            add_assign_modulo512(&mut sigma, &m);
+            add_assign_modulo512(&mut sigma, s);
 
-            len_bytes -= 64;
+            len -= 64;
         }
 
-        m.fill(0);
-        let i = 64 - len_bytes;
-        let count = len_bytes;
+        let mut m: HashWord = ZERO_HASH_WORD;
+        let i = 64 - len;
 
-        m[i..i + count].copy_from_slice(&src[0..count]);
+        m[i..64].copy_from_slice(&src[0..len]);
 
         // Stage 3
-        m[63 - len_bytes] |= 1;
+        m[63 - len] |= 1;
 
-        g_n(&n, dst, &m);
-        v512[63] = ((len_bytes << 3) & 0xFF) as u8;
-        v512[62] = (len_bytes >> 5) as u8;
+        g_n(&n, &m, &mut dst);
+        v512[63] = ((len << 3) & 0xFF) as u8;
+        v512[62] = (len >> 5) as u8;
         add_assign_modulo512(&mut n, &v512);
 
         add_assign_modulo512(&mut sigma, &m);
 
-        g_n(&v0, dst, &n);
-        g_n(&v0, dst, &sigma);
+        g_n0(&n, &mut dst);
+        g_n0(&sigma, &mut dst);
+
+        dst
     }
 }

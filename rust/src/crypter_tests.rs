@@ -2,8 +2,6 @@ use crate::crypter::Crypter;
 use std::time;
 use std::time::SystemTime;
 
-#[allow(dead_code)]
-
 struct Test<'a> {
     name: &'a str,
     input: &'a [u8],

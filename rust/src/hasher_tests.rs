@@ -1,7 +1,5 @@
 use crate::hasher::Hasher;
 
-#[allow(dead_code)]
-
 struct Test<'a> {
     name: &'a str,
     input: &'a [u8],
@@ -76,10 +74,8 @@ const TESTS: &[Test<'static>] = &[TEST01, TEST02, TEST03, TEST04];
 #[test]
 fn hash_tests() {
     for test in TESTS {
-        let mut hashed = [0u8; 64];
-
         // hash
-        Hasher::hash(test.input, &mut hashed);
+        let hashed = Hasher::hash(test.input);
         assert_eq!(hashed.as_slice(), test.hash);
     }
 }
