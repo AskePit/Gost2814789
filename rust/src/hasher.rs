@@ -1,3 +1,6 @@
+use rand::RngCore;
+use std::ptr::copy_nonoverlapping;
+
 pub struct Hasher {}
 
 // Tables for function f
@@ -2156,8 +2159,8 @@ const C: [[u8; 64]; 12] = [
     ],
 ];
 
-type HashWord = [u8; 64];
-const ZERO_HASH_WORD: HashWord = [0u8; 64];
+pub type HashWord = [u8; 64];
+pub const ZERO_HASH_WORD: HashWord = [0u8; 64];
 
 fn add_assign_modulo512(a: &mut HashWord, b: &HashWord) {
     let mut t = 0usize;
@@ -2244,7 +2247,14 @@ fn g_n(n: &HashWord, m: &HashWord, h: &mut HashWord) {
     *h = add_xor512(&t, m);
 }
 
+pub type Salt = [u8; 6];
+
+const STATIC_SALT: [u8; 7] = [0x85, 0x54, 0xd6, 0xb0, 0x9f, 0x36, 0xaa];
+
 impl Hasher {
+    pub const SIZE_OF_HASH: usize = 64;
+    pub const SIZE_OF_SALT: usize = 6;
+
     pub fn hash(src: &[u8]) -> HashWord {
         let mut v512 = ZERO_HASH_WORD;
         let mut sigma = ZERO_HASH_WORD;
@@ -2287,5 +2297,28 @@ impl Hasher {
         g_n0(&sigma, &mut dst);
 
         dst
+    }
+
+    pub fn hash_with_salt(src: &[u8], salt: Salt) -> HashWord {
+        let mut salted_src = Vec::with_capacity(src.len() + Self::SIZE_OF_SALT + STATIC_SALT.len());
+
+        unsafe {
+            copy_nonoverlapping(src.as_ptr(), salted_src.as_mut_ptr(), src.len());
+            copy_nonoverlapping(salt.as_ptr(), salted_src.as_mut_ptr(), salt.len());
+            copy_nonoverlapping(
+                STATIC_SALT.as_ptr(),
+                salted_src.as_mut_ptr(),
+                STATIC_SALT.len(),
+            );
+        }
+
+        Self::hash(salted_src.as_slice())
+    }
+
+    pub fn generate_salt() -> Salt {
+        let mut salt = [0; Self::SIZE_OF_SALT];
+        rand::thread_rng().fill_bytes(&mut salt);
+
+        salt
     }
 }
